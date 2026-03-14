@@ -33,6 +33,7 @@ export class LifestreamDoctor {
   private readonly queue: CrashQueue;
   private readonly storage: StorageBackend;
   private deviceContextProvider?: DeviceContextProvider;
+  private _consentPreVerified = false;
 
   constructor(options: DoctorOptions) {
     // Resolve enabled first — allow disabled instances with missing credentials
@@ -78,8 +79,18 @@ export class LifestreamDoctor {
    * Revokes consent and clears the offline queue.
    */
   async revokeConsent(): Promise<void> {
+    this._consentPreVerified = false;
     await this.storage.removeItem(CONSENT_KEY);
     await this.queue.clear();
+  }
+
+  /**
+   * Pre-verifies consent in memory so captureException can skip the async
+   * storage check. Call this after confirming consent via grantConsent() to
+   * eliminate the race window where early crashes are dropped.
+   */
+  setConsentPreVerified(): void {
+    this._consentPreVerified = true;
   }
 
   /**
@@ -119,7 +130,7 @@ export class LifestreamDoctor {
   ): Promise<void> {
     // 1. Check enabled and consent
     if (!this.options.enabled) return;
-    if (!(await this.isConsentGranted())) return;
+    if (!this._consentPreVerified && !(await this.isConsentGranted())) return;
 
     // 2. Rate limit check
     const fingerprint = RateLimiter.fingerprint(error.name, error.message);
