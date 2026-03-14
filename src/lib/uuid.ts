@@ -1,11 +1,19 @@
 /**
- * Generate a UUID v4 using the Web Crypto API.
- * No dependencies — uses `crypto.getRandomValues` available in
- * Node 18+, all modern browsers, React Native, Deno, and Bun.
+ * Generate a UUID v4 using the Web Crypto API with Math.random fallback.
+ * Prefers `crypto.getRandomValues` (Node 18+, browsers, Deno, Bun) but
+ * falls back to Math.random when crypto is unavailable (e.g., early Hermes
+ * initialization in React Native before the JS engine exposes globalThis.crypto).
  */
 export function uuid(): string {
   const bytes = new Uint8Array(16);
-  globalThis.crypto.getRandomValues(bytes);
+  if (globalThis.crypto?.getRandomValues) {
+    globalThis.crypto.getRandomValues(bytes);
+  } else {
+    // Non-cryptographic fallback — acceptable for crash report IDs
+    for (let i = 0; i < 16; i++) {
+      bytes[i] = Math.floor(Math.random() * 256);
+    }
+  }
 
   // Set version (4) and variant (RFC 4122)
   bytes[6] = (bytes[6] & 0x0f) | 0x40;
