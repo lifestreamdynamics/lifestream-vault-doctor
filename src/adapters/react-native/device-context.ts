@@ -9,6 +9,7 @@ export async function getReactNativeDeviceContext(): Promise<DeviceContext> {
 
   try {
     // Platform info is synchronous and always available in React Native
+    // @ts-ignore — optional peer dependency, not installed in standalone builds
     const { Platform } = await import('react-native');
     ctx.platform = Platform.OS;
     ctx.osVersion = String(Platform.Version);
@@ -18,6 +19,7 @@ export async function getReactNativeDeviceContext(): Promise<DeviceContext> {
 
   try {
     // expo-constants is optional — dynamic import so it doesn't crash if absent
+    // @ts-ignore — optional peer dependency, not installed in standalone builds
     const Constants = await import('expo-constants').then((m) => m.default ?? m);
     ctx.deviceName = (Constants as { deviceName?: string }).deviceName ?? undefined;
     ctx.appVersion =

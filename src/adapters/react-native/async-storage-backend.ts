@@ -33,7 +33,7 @@ export class AsyncStorageBackend implements StorageBackend {
       return this._resolved;
     }
     // Lazy-load module — only imported once
-    // @ts-expect-error — dynamic import of optional peer dependency
+    // @ts-ignore — optional peer dependency, not installed in standalone builds
     const mod = await import('@react-native-async-storage/async-storage');
     // The module's default export is the AsyncStorage object
     this._resolved = (mod.default ?? mod) as AsyncStorageInstance;
