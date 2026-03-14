@@ -9,6 +9,7 @@ Crash reporting SDK for Lifestream Vault — captures exceptions and uploads the
 
 - [Installation](#installation)
 - [Quick Start](#quick-start)
+- [Platform Compatibility](#platform-compatibility)
 - [API Reference](#api-reference)
   - [LifestreamDoctor](#lifestreamdoctor)
   - [Consent Methods](#consent-methods)
@@ -72,6 +73,21 @@ Each captured exception becomes a Markdown document inside your vault, searchabl
 
 ---
 
+## Platform Compatibility
+
+The SDK works in Node.js 20+, web browsers, and React Native (both Expo-managed and bare CLI workflows).
+
+There are no hard runtime dependencies. React Native peer dependencies (`@react-native-async-storage/async-storage`, `expo-constants`) are all optional — the SDK is safe to import in Node.js and browser environments without them.
+
+The package exposes two entry points:
+
+- **Main** (`@lifestreamdynamics/doctor`) — universal entry point; works in Node.js, browsers, and React Native.
+- **React Native adapter** (`@lifestreamdynamics/doctor/react-native`) — exports `AsyncStorageBackend`, `installReactNativeHandlers`, and `getReactNativeDeviceContext`. Safe to tree-shake from non-RN bundles.
+
+For browser-specific persistence, implement a `StorageBackend` backed by `localStorage` (see the [Custom StorageBackend](#custom-storagebackend) example in the Offline Queue section).
+
+---
+
 ## API Reference
 
 ### LifestreamDoctor
@@ -112,6 +128,18 @@ Returns `true` if consent is currently active.
 const hasConsent = await doctor.isConsentGranted();
 ```
 
+#### `setConsentPreVerified(): void`
+
+Sets an in-memory flag that bypasses the async storage read in `captureException`. This eliminates the race window where an exception thrown synchronously immediately after `grantConsent()` could be silently dropped because the storage write has not yet completed.
+
+```typescript
+await doctor.grantConsent();
+doctor.setConsentPreVerified(); // Sync — no await needed
+// Exceptions captured immediately after this point are guaranteed to be processed
+```
+
+The flag is cleared automatically when `revokeConsent()` is called.
+
 ---
 
 ### captureException
@@ -127,7 +155,7 @@ await doctor.captureException(error: Error, extras?: {
 
 Builds a crash report from the error and current breadcrumb buffer, runs it through `beforeSend` (if configured), and uploads it to the vault. If the upload fails due to a network error, the report is placed in the offline queue for later retry via `flushQueue()`.
 
-Duplicate errors (same error name and message) are suppressed within the `rateLimitWindowMs` window to prevent report storms.
+Duplicate errors (same error name and message) are suppressed within the `rateLimitWindowMs` window to prevent report storms. The fingerprint format is `errorName::message`. The minimum effective `rateLimitWindowMs` is 1,000 ms — lower values are clamped to 1,000 ms.
 
 ```typescript
 await doctor.captureException(new TypeError('Cannot read properties of undefined'), {
@@ -198,6 +226,8 @@ doctor.setDeviceContextProvider(fn: () => DeviceContext | Promise<DeviceContext>
 
 Registers a function that returns device and runtime context to attach to every report. The provider is called at capture time, not at construction, so it always reflects current state. If no provider is set, device context is empty.
 
+`DeviceContext` has an open index signature (`[key: string]: unknown`), so any additional keys you include will appear in the **Device Context** section of the generated Markdown report alongside the built-in fields.
+
 ```typescript
 doctor.setDeviceContextProvider(() => ({
   platform: 'web',
@@ -247,16 +277,40 @@ window.addEventListener('online', () => {
 const ErrorBoundary = doctor.createErrorBoundary();
 ```
 
-Returns a React error boundary component that automatically calls `captureException` with the `componentStack` when a descendant component throws during rendering. Renders a minimal fallback UI while the exception is captured.
+Returns a React error boundary component that automatically calls `captureException` with the `componentStack` when a descendant component throws during rendering.
+
+The returned component accepts an optional `fallback` prop (a React node) for custom fallback UI. If the `fallback` prop is omitted, the boundary renders a bare `<div role="alert">Something went wrong.</div>`.
+
+The boundary instance also exposes a `resetError()` method to programmatically reset the error state — useful when you want a "Try again" button to clear the boundary without remounting the entire tree.
 
 ```tsx
 import React from 'react';
 
 const ErrorBoundary = doctor.createErrorBoundary();
 
+// Basic usage — default fallback UI
 export function App() {
   return (
     <ErrorBoundary>
+      <MyApplication />
+    </ErrorBoundary>
+  );
+}
+
+// Custom fallback UI with reset
+export function AppWithReset() {
+  const boundaryRef = React.useRef<{ resetError: () => void } | null>(null);
+
+  return (
+    <ErrorBoundary
+      ref={boundaryRef}
+      fallback={
+        <div role="alert">
+          <p>Something went wrong.</p>
+          <button onClick={() => boundaryRef.current?.resetError()}>Try again</button>
+        </div>
+      }
+    >
       <MyApplication />
     </ErrorBoundary>
   );
@@ -272,17 +326,32 @@ The boundary passes the React `componentStack` as part of `extras`, which appear
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `apiUrl` | `string` | required | Base URL of your Lifestream Vault instance (e.g. `https://vault.example.com`) |
-| `vaultId` | `string` | required | ID of the vault where crash reports are written |
+| `vaultId` | `string` | required | UUID of the vault where crash reports are written (e.g. `da4b97bd-c93f-466f-8210-18bedc6e5eed`). Must be the vault's UUID — not the slug. The API resolves vaults by UUID only |
 | `apiKey` | `string` | required | API key with write scope (`lsv_k_` prefix) |
 | `environment` | `string` | `'production'` | Environment tag included in every report (e.g. `'staging'`, `'development'`) |
-| `enabled` | `boolean` | `true` | Master switch. When `false`, all capture calls no-op regardless of consent |
+| `enabled` | `boolean` | `true` | Master switch. When `false`, all capture calls no-op regardless of consent. When `false`, `apiUrl`, `vaultId`, and `apiKey` can be empty strings — useful for CI or test environments where you want to instantiate the class without real credentials |
 | `maxBreadcrumbs` | `number` | `50` | Maximum breadcrumb buffer size. Oldest entries evicted when full |
-| `rateLimitWindowMs` | `number` | `60000` | Suppression window (ms) for duplicate errors with the same fingerprint |
+| `rateLimitWindowMs` | `number` | `60000` | Suppression window (ms) for duplicate errors with the same fingerprint. Minimum effective value is 1,000 ms |
 | `pathPrefix` | `string` | `'crash-reports'` | Document path prefix. Reports land at `{prefix}/{YYYY-MM-DD}/{errorname}-{id}.md` |
 | `tags` | `string[]` | `[]` | Additional tags attached to every report |
 | `beforeSend` | `(report: CrashReport) => CrashReport \| null` | `undefined` | Filter or transform a report before upload. Return `null` to discard it |
 | `storage` | `StorageBackend` | `MemoryStorage` | Persistence backend for offline queue and consent state |
 | `enableRequestSigning` | `boolean` | `true` | Sign uploads with HMAC-SHA256 using the API key as the signing secret. When `crypto.subtle` is unavailable (e.g. React Native Hermes), signing is automatically skipped and the request proceeds unsigned |
+
+### Disabled instances for CI / test environments
+
+When `enabled: false`, the credential fields are not validated and may be empty strings:
+
+```typescript
+const doctor = new LifestreamDoctor({
+  apiUrl: '',
+  vaultId: '',
+  apiKey: '',
+  enabled: process.env.NODE_ENV !== 'test',
+});
+```
+
+All `captureException` and `captureMessage` calls return immediately without network activity.
 
 ---
 
@@ -342,11 +411,17 @@ export default function App() {
 
 A `StorageBackend` implementation backed by `@react-native-async-storage/async-storage`. Persists the offline queue and consent state across app restarts.
 
+The constructor argument is optional. If an `AsyncStorage` instance is provided, it is used directly. If omitted, the module is lazy-imported from `@react-native-async-storage/async-storage` on the first storage call.
+
 ```typescript
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AsyncStorageBackend } from '@lifestreamdynamics/doctor/react-native';
 
+// Explicit instance (import AsyncStorage yourself):
 const storage = new AsyncStorageBackend(AsyncStorage);
+
+// Lazy-import (no explicit import required):
+const storage = new AsyncStorageBackend();
 ```
 
 ### Flush on App Resume
@@ -435,6 +510,8 @@ TypeError: Cannot read properties of undefined (reading 'id')
 }
 ```
 ```
+
+Stack traces longer than 4,000 characters are truncated and a `[truncated]` marker is appended at the cut point.
 
 Because every report is a standard Vault document, you can search across crash reports using Vault's full-text search, filter by tag (`crash-report`, `fatal`, `production`), browse by date in the file tree, and link reports to related notes or post-mortems.
 
@@ -617,6 +694,8 @@ await doctor.captureException(err, {
   },
 });
 ```
+
+Extra context payloads over 50 KB are replaced with an error message (`{"_error":"Extra context too large"}`) in the generated document. Circular references are handled gracefully — they are serialized as `{"_error":"Failed to serialize extra context"}` rather than throwing.
 
 Add data to every report by using `beforeSend`:
 
