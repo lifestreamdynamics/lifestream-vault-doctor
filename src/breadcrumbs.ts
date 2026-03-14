@@ -21,8 +21,8 @@ export class BreadcrumbBuffer {
   add(crumb: Omit<Breadcrumb, 'timestamp'> & { timestamp?: string }): void {
     const entry: Breadcrumb = {
       timestamp: crumb.timestamp ?? new Date().toISOString(),
-      type: crumb.type,
-      message: crumb.message,
+      type: (crumb.type ?? '').slice(0, 50),
+      message: (crumb.message ?? '').slice(0, 500),
       data: crumb.data,
     };
 

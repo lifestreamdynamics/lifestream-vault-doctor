@@ -127,7 +127,12 @@ export function formatReport(report: CrashReport): string {
     lines.push('## Additional Context');
     lines.push('');
     lines.push('```json');
-    lines.push(JSON.stringify(report.extra, null, 2));
+    try {
+      const serialized = JSON.stringify(report.extra, null, 2);
+      lines.push(serialized.length > 50_000 ? '{"_error":"Extra context too large"}' : serialized);
+    } catch {
+      lines.push('{"_error":"Failed to serialize extra context"}');
+    }
     lines.push('```');
     lines.push('');
   }

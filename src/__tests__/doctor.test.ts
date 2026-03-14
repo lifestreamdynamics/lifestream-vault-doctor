@@ -56,6 +56,34 @@ describe('LifestreamDoctor', () => {
     it('does not throw with all required fields present', () => {
       expect(() => makeDoctor()).not.toThrow();
     });
+
+    it('allows empty apiKey when enabled is false', () => {
+      expect(() =>
+        new LifestreamDoctor({
+          apiUrl: 'https://x.com',
+          vaultId: 'v',
+          apiKey: '',
+          enabled: false,
+        }),
+      ).not.toThrow();
+    });
+
+    it('allows empty apiUrl and vaultId when enabled is false', () => {
+      expect(() =>
+        new LifestreamDoctor({
+          apiUrl: '',
+          vaultId: '',
+          apiKey: '',
+          enabled: false,
+        }),
+      ).not.toThrow();
+    });
+
+    it('still throws on empty apiKey when enabled is true', () => {
+      expect(() =>
+        new LifestreamDoctor({ apiUrl: 'https://x.com', vaultId: 'v', apiKey: '', enabled: true }),
+      ).toThrow('apiKey is required');
+    });
   });
 
   // ── Consent gate ──────────────────────────────────────────────────────────
@@ -430,6 +458,48 @@ describe('LifestreamDoctor', () => {
       const [, init] = mockFetch.mock.calls[0];
       const body = JSON.parse((init as RequestInit).body as string);
       expect(body.content).toContain('severity:fatal');
+    });
+  });
+
+  // ── createErrorBoundary ───────────────────────────────────────────────────
+
+  describe('createErrorBoundary', () => {
+    it('throws when React is not available on globalThis', () => {
+      const { doctor } = makeDoctor();
+      // Ensure React is not on globalThis
+      delete (globalThis as any).React;
+      expect(() => doctor.createErrorBoundary()).toThrow('createErrorBoundary() requires React');
+    });
+
+    it('returns a component class when React is available', () => {
+      const { doctor } = makeDoctor();
+      // Minimal React mock
+      (globalThis as any).React = {
+        Component: class {},
+        createElement: vi.fn(),
+      };
+      try {
+        const Boundary = doctor.createErrorBoundary();
+        expect(Boundary).toBeDefined();
+        expect(typeof Boundary).toBe('function');
+      } finally {
+        delete (globalThis as any).React;
+      }
+    });
+
+    it('returned boundary has a doctor reference', () => {
+      const { doctor } = makeDoctor();
+      (globalThis as any).React = {
+        Component: class {},
+        createElement: vi.fn(),
+      };
+      try {
+        const Boundary = doctor.createErrorBoundary();
+        const instance = new Boundary({});
+        expect(instance.doctor).toBe(doctor);
+      } finally {
+        delete (globalThis as any).React;
+      }
     });
   });
 });

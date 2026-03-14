@@ -208,6 +208,22 @@ describe('formatReport', () => {
       const output = formatReport(makeReport({ extra: undefined }));
       expect(output).not.toContain('## Additional Context');
     });
+
+    it('handles circular references in extra without crashing', () => {
+      const circular: Record<string, unknown> = { key: 'value' };
+      circular.self = circular;
+      const report = makeReport({ extra: circular });
+      const output = formatReport(report);
+      expect(output).toContain('## Additional Context');
+      expect(output).toContain('Failed to serialize extra context');
+    });
+
+    it('truncates extra context larger than 50KB', () => {
+      const largeExtra = { data: 'x'.repeat(60_000) };
+      const report = makeReport({ extra: largeExtra });
+      const output = formatReport(report);
+      expect(output).toContain('Extra context too large');
+    });
   });
 
   describe('YAML escaping for special characters', () => {

@@ -311,4 +311,28 @@ describe('CrashQueue', () => {
       expect(await q2.size()).toBe(0);
     });
   });
+
+  describe('corrupted storage', () => {
+    it('returns empty queue when storage contains invalid JSON', async () => {
+      const storage = makeStorage();
+      await storage.setItem('doctor:queue', 'not-valid-json{{{');
+      const q = new CrashQueue(storage);
+      expect(await q.size()).toBe(0);
+      expect(await q.dequeue()).toBeNull();
+    });
+
+    it('returns empty queue when storage contains non-array JSON', async () => {
+      const storage = makeStorage();
+      await storage.setItem('doctor:queue', '{"key":"value"}');
+      const q = new CrashQueue(storage);
+      expect(await q.size()).toBe(0);
+    });
+
+    it('returns empty queue when storage contains null JSON', async () => {
+      const storage = makeStorage();
+      await storage.setItem('doctor:queue', 'null');
+      const q = new CrashQueue(storage);
+      expect(await q.size()).toBe(0);
+    });
+  });
 });

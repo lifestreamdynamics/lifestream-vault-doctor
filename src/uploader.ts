@@ -23,11 +23,20 @@ export async function uploadReport(options: {
   };
 
   if (enableRequestSigning) {
-    // Extract just the path portion for signing (no origin)
-    const urlObj = new URL(url);
-    const requestPath = urlObj.pathname;
-    const sigHeaders = await signRequest(apiKey, 'PUT', requestPath, body);
-    Object.assign(headers, sigHeaders);
+    try {
+      // Extract just the path portion for signing (no origin)
+      const urlObj = new URL(url);
+      const requestPath = urlObj.pathname;
+      const sigHeaders = await signRequest(apiKey, 'PUT', requestPath, body);
+      Object.assign(headers, sigHeaders);
+    } catch (err) {
+      // crypto.subtle unavailable (e.g., Hermes) — proceed without signing.
+      // Re-throw non-crypto errors to surface real bugs.
+      const msg = err instanceof Error ? err.message : '';
+      if (!msg.includes('crypto.subtle') && typeof globalThis.crypto?.subtle !== 'undefined') {
+        throw err;
+      }
+    }
   }
 
   const controller = new AbortController();

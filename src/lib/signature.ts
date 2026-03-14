@@ -22,6 +22,9 @@ export const MAX_TIMESTAMP_AGE_MS = 5 * 60 * 1000; // 5 minutes
  * Uses the Web Crypto API (available in Node 18+, all modern browsers, Deno, Bun).
  */
 async function sha256Hex(data: string): Promise<string> {
+  if (!globalThis.crypto?.subtle) {
+    throw new Error('sha256Hex: crypto.subtle is not available in this environment');
+  }
   const encoded = new TextEncoder().encode(data);
   const hash = await globalThis.crypto.subtle.digest('SHA-256', encoded);
   return Array.from(new Uint8Array(hash))
@@ -35,6 +38,9 @@ async function sha256Hex(data: string): Promise<string> {
  * Uses the Web Crypto API (available in Node 18+, all modern browsers, Deno, Bun).
  */
 async function hmacSha256Hex(key: string, data: string): Promise<string> {
+  if (!globalThis.crypto?.subtle) {
+    throw new Error('hmacSha256Hex: crypto.subtle is not available in this environment');
+  }
   const encoder = new TextEncoder();
   const cryptoKey = await globalThis.crypto.subtle.importKey(
     'raw',
@@ -89,7 +95,14 @@ export async function signPayload(secret: string, payload: string): Promise<stri
  */
 export function generateNonce(): string {
   const bytes = new Uint8Array(16);
-  globalThis.crypto.getRandomValues(bytes);
+  if (typeof globalThis.crypto?.getRandomValues === 'function') {
+    globalThis.crypto.getRandomValues(bytes);
+  } else {
+    // Fallback: non-crypto random (acceptable for nonce, not security-critical)
+    for (let i = 0; i < bytes.length; i++) {
+      bytes[i] = Math.floor(Math.random() * 256);
+    }
+  }
   return Array.from(bytes)
     .map(b => b.toString(16).padStart(2, '0'))
     .join('');

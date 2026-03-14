@@ -22,6 +22,8 @@
     "dist",
     "!dist/**/*.test.*",
     "!dist/**/__tests__",
+    "react-native.js",
+    "react-native.d.ts",
     "README.md"
   ],
   "keywords": [

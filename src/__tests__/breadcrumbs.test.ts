@@ -191,4 +191,38 @@ describe('BreadcrumbBuffer', () => {
       expect(buf.capacity).toBe(1);
     });
   });
+
+  describe('input truncation', () => {
+    it('truncates type to 50 characters', () => {
+      const buf = new BreadcrumbBuffer(5);
+      const longType = 'a'.repeat(100);
+      buf.add({ type: longType, message: 'test' });
+      const all = buf.getAll();
+      expect(all[0].type).toHaveLength(50);
+      expect(all[0].type).toBe('a'.repeat(50));
+    });
+
+    it('truncates message to 500 characters', () => {
+      const buf = new BreadcrumbBuffer(5);
+      const longMessage = 'b'.repeat(1000);
+      buf.add({ type: 'test', message: longMessage });
+      const all = buf.getAll();
+      expect(all[0].message).toHaveLength(500);
+      expect(all[0].message).toBe('b'.repeat(500));
+    });
+
+    it('does not truncate type of exactly 50 characters', () => {
+      const buf = new BreadcrumbBuffer(5);
+      const exactType = 'c'.repeat(50);
+      buf.add({ type: exactType, message: 'test' });
+      expect(buf.getAll()[0].type).toBe(exactType);
+    });
+
+    it('does not truncate message of exactly 500 characters', () => {
+      const buf = new BreadcrumbBuffer(5);
+      const exactMsg = 'd'.repeat(500);
+      buf.add({ type: 'test', message: exactMsg });
+      expect(buf.getAll()[0].message).toBe(exactMsg);
+    });
+  });
 });

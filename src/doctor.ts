@@ -35,20 +35,29 @@ export class LifestreamDoctor {
   private deviceContextProvider?: DeviceContextProvider;
 
   constructor(options: DoctorOptions) {
-    if (!options.apiUrl) throw new Error('LifestreamDoctor: apiUrl is required');
-    if (!options.vaultId) throw new Error('LifestreamDoctor: vaultId is required');
-    if (!options.apiKey) throw new Error('LifestreamDoctor: apiKey is required');
+    // Resolve enabled first — allow disabled instances with missing credentials
+    const enabled = options.enabled ?? true;
 
-    this.options = {
-      environment: 'production',
-      enabled: true,
-      maxBreadcrumbs: 50,
-      rateLimitWindowMs: 60_000,
-      pathPrefix: 'crash-reports',
-      tags: [],
-      enableRequestSigning: true,
-      ...options,
-    };
+    if (enabled) {
+      if (!options.apiUrl) throw new Error('LifestreamDoctor: apiUrl is required');
+      if (!options.vaultId) throw new Error('LifestreamDoctor: vaultId is required');
+      if (!options.apiKey) throw new Error('LifestreamDoctor: apiKey is required');
+    }
+
+    this.options = Object.assign(
+      {
+        environment: 'production' as const,
+        enabled,
+        maxBreadcrumbs: 50,
+        rateLimitWindowMs: 60_000,
+        pathPrefix: 'crash-reports',
+        tags: [] as string[],
+        enableRequestSigning: true,
+      },
+      options,
+      // Re-apply computed enabled after spread so `undefined` from options doesn't override
+      { enabled },
+    );
 
     this.storage = options.storage ?? new MemoryStorage();
 

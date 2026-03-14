@@ -120,4 +120,28 @@ describe('RateLimiter', () => {
       expect(rl.shouldAllow('Error::x')).toBe(true);
     });
   });
+
+  describe('max fingerprint cap', () => {
+    it('allows new fingerprints beyond the cap without tracking them', () => {
+      const rl = new RateLimiter(60_000);
+      // Fill up to the cap with unique fingerprints
+      for (let i = 0; i < 10_000; i++) {
+        rl.shouldAllow(`Error::unique-error-${i}`);
+      }
+      // New fingerprint beyond the cap should still be allowed
+      expect(rl.shouldAllow('Error::beyond-cap')).toBe(true);
+      // But it should not be tracked, so calling again should also be allowed
+      // (not rate-limited, since it wasn't stored)
+      expect(rl.shouldAllow('Error::beyond-cap')).toBe(true);
+    });
+
+    it('still rate-limits existing fingerprints at the cap', () => {
+      const rl = new RateLimiter(60_000);
+      for (let i = 0; i < 10_000; i++) {
+        rl.shouldAllow(`Error::error-${i}`);
+      }
+      // An existing fingerprint should still be rate-limited
+      expect(rl.shouldAllow('Error::error-0')).toBe(false);
+    });
+  });
 });

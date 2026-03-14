@@ -38,7 +38,9 @@ npm install @lifestreamdynamics/doctor
 React Native / Expo projects also need:
 
 ```bash
-npx expo install @react-native-async-storage/async-storage expo-constants
+npx expo install @react-native-async-storage/async-storage
+# Optional — expo-constants enables automatic device context (falls back gracefully without it):
+npx expo install expo-constants
 ```
 
 ---
@@ -280,7 +282,7 @@ The boundary passes the React `componentStack` as part of `extras`, which appear
 | `tags` | `string[]` | `[]` | Additional tags attached to every report |
 | `beforeSend` | `(report: CrashReport) => CrashReport \| null` | `undefined` | Filter or transform a report before upload. Return `null` to discard it |
 | `storage` | `StorageBackend` | `MemoryStorage` | Persistence backend for offline queue and consent state |
-| `enableRequestSigning` | `boolean` | `true` | Sign uploads with HMAC-SHA256 using the API key as the signing secret |
+| `enableRequestSigning` | `boolean` | `true` | Sign uploads with HMAC-SHA256 using the API key as the signing secret. When `crypto.subtle` is unavailable (e.g. React Native Hermes), signing is automatically skipped and the request proceeds unsigned |
 
 ---
 
@@ -535,6 +537,8 @@ const doctor = new LifestreamDoctor({
 ```
 
 `beforeSend` is called synchronously. Avoid async operations or expensive work inside it; if you need async enrichment, use `setDeviceContextProvider` instead, which is awaited at capture time.
+
+> **Note:** If `beforeSend` throws an error, the exception propagates to the caller of `captureException` / `captureMessage`. Guard any fallible logic with try-catch inside your callback.
 
 ---
 
