@@ -1,6 +1,6 @@
 {
   "name": "@lifestreamdynamics/doctor",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Crash reporting SDK for Lifestream Vault — uploads reports as Markdown documents",
   "engines": {
     "node": ">=20"
