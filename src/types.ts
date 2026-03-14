@@ -92,6 +92,14 @@ export interface DoctorOptions {
   storage?: StorageBackend;
   /** Enable HMAC request signing (default: true) */
   enableRequestSigning?: boolean;
+  /**
+   * Custom request signing function for environments without crypto.subtle
+   * (e.g. React Native / Hermes). When provided, this is used instead of the
+   * built-in Web Crypto signing. Must return the three signature headers.
+   */
+  signRequest?: (apiKey: string, method: string, path: string, body: string) => Promise<Record<string, string>>;
+  /** Enable debug logging to console (default: false) */
+  debug?: boolean;
 }
 
 /**

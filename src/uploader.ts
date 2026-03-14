@@ -1,5 +1,5 @@
 import { UploadError } from './errors.js';
-import { signRequest } from './lib/signature.js';
+import { signRequest as defaultSignRequest } from './lib/signature.js';
 
 /**
  * Uploads a formatted crash report to the Lifestream Vault API.
@@ -11,8 +11,9 @@ export async function uploadReport(options: {
   content: string;
   path: string;
   enableRequestSigning?: boolean;
+  signRequest?: (apiKey: string, method: string, path: string, body: string) => Promise<Record<string, string>>;
 }): Promise<void> {
-  const { apiUrl, vaultId, apiKey, content, path, enableRequestSigning = true } = options;
+  const { apiUrl, vaultId, apiKey, content, path, enableRequestSigning = true, signRequest } = options;
 
   const url = `${apiUrl}/api/v1/vaults/${vaultId}/documents/${path}`;
   const body = JSON.stringify({ content, createIntermediateFolders: true });
@@ -22,11 +23,19 @@ export async function uploadReport(options: {
     'Authorization': `Bearer ${apiKey}`,
   };
 
-  if (enableRequestSigning && typeof globalThis.crypto?.subtle !== 'undefined') {
-    const urlObj = new URL(url);
-    const requestPath = urlObj.pathname;
-    const sigHeaders = await signRequest(apiKey, 'PUT', requestPath, body);
-    Object.assign(headers, sigHeaders);
+  if (enableRequestSigning) {
+    if (signRequest) {
+      // Use the custom signing function (e.g. for React Native without crypto.subtle)
+      const urlObj = new URL(url);
+      const sigHeaders = await signRequest(apiKey, 'PUT', urlObj.pathname, body);
+      Object.assign(headers, sigHeaders);
+    } else if (typeof globalThis.crypto?.subtle !== 'undefined') {
+      // Use the built-in Web Crypto signing
+      const urlObj = new URL(url);
+      const sigHeaders = await defaultSignRequest(apiKey, 'PUT', urlObj.pathname, body);
+      Object.assign(headers, sigHeaders);
+    }
+    // If neither is available, proceed without signing (server will reject if required)
   }
 
   const controller = new AbortController();
@@ -51,8 +60,15 @@ export async function uploadReport(options: {
     }
 
     if (!response.ok) {
+      let detail = response.statusText;
+      try {
+        const body = await response.text();
+        if (body) detail = body;
+      } catch {
+        // Ignore read errors — use statusText
+      }
       throw new UploadError(
-        `Upload failed with HTTP ${response.status}: ${response.statusText}`,
+        `Upload failed with HTTP ${response.status}: ${detail}`,
         response.status,
       );
     }

@@ -24,7 +24,7 @@ const CONSENT_KEY = 'doctor:consent';
  */
 export class LifestreamDoctor {
   private readonly options: Required<
-    Pick<DoctorOptions, 'apiUrl' | 'vaultId' | 'apiKey' | 'environment' | 'enabled' | 'pathPrefix' | 'enableRequestSigning'>
+    Pick<DoctorOptions, 'apiUrl' | 'vaultId' | 'apiKey' | 'environment' | 'enabled' | 'pathPrefix' | 'enableRequestSigning' | 'debug'>
   > & DoctorOptions;
 
   private readonly session: Session;
@@ -54,6 +54,7 @@ export class LifestreamDoctor {
         pathPrefix: 'crash-reports',
         tags: [] as string[],
         enableRequestSigning: true,
+        debug: false,
       },
       options,
       // Re-apply computed enabled after spread so `undefined` from options doesn't override
@@ -195,8 +196,13 @@ export class LifestreamDoctor {
         content,
         path,
         enableRequestSigning: this.options.enableRequestSigning,
+        signRequest: this.options.signRequest,
       });
-    } catch {
+    } catch (uploadErr) {
+      if (this.options.debug) {
+        // eslint-disable-next-line no-console
+        console.warn('[Doctor] Upload failed, enqueuing for retry:', uploadErr instanceof Error ? uploadErr.message : String(uploadErr));
+      }
       await this.queue.enqueue(content, path);
     }
   }
@@ -223,7 +229,7 @@ export class LifestreamDoctor {
       return { sent: 0, failed: 0, deadLettered: 0 };
     }
 
-    return this.queue.flush(async (report) => {
+    const result = await this.queue.flush(async (report) => {
       await uploadReport({
         apiUrl: this.options.apiUrl,
         vaultId: this.options.vaultId,
@@ -231,8 +237,16 @@ export class LifestreamDoctor {
         content: report.content,
         path: report.path,
         enableRequestSigning: this.options.enableRequestSigning,
+        signRequest: this.options.signRequest,
       });
     });
+
+    if (this.options.debug && (result.sent > 0 || result.failed > 0 || result.deadLettered > 0)) {
+      // eslint-disable-next-line no-console
+      console.log(`[Doctor] Queue flush: ${result.sent} sent, ${result.failed} failed, ${result.deadLettered} dead-lettered`);
+    }
+
+    return result;
   }
 
   /**

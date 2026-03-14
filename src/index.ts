@@ -18,3 +18,12 @@ export { CrashQueue } from './queue/index.js';
 export { MemoryStorage } from './queue/memory-storage.js';
 export { formatReport, generateDocPath } from './formatter.js';
 export { uploadReport } from './uploader.js';
+export {
+  buildSignaturePayload,
+  signPayload,
+  generateNonce,
+  signRequest,
+  SIGNATURE_HEADER,
+  SIGNATURE_TIMESTAMP_HEADER,
+  SIGNATURE_NONCE_HEADER,
+} from './lib/signature.js';
