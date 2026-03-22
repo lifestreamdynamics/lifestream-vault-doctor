@@ -5,6 +5,8 @@ Crash reporting SDK for Lifestream Vault — captures exceptions and uploads the
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![npm version](https://img.shields.io/npm/v/@lifestreamdynamics/doctor.svg)](https://www.npmjs.com/package/@lifestreamdynamics/doctor)
 
+> **Getting started?** Follow the [Crash Reporting with Doctor SDKs](https://vault.lifestreamdynamics.com/docs/guides/crash-reporting-with-doctor) user guide for a step-by-step walkthrough covering setup, consent, error boundaries, hooks, and crash triage with the kanban board and calendar timeline.
+
 ## Table of Contents
 
 - [Installation](#installation)
