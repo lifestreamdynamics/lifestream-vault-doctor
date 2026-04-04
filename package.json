@@ -3,7 +3,7 @@
   "version": "1.0.7",
   "description": "Crash reporting SDK for Lifestream Vault — uploads reports as Markdown documents",
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "type": "module",
   "main": "dist/index.js",
