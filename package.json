@@ -43,7 +43,7 @@
   },
   "scripts": {
     "build": "tsc",
-    "prepare": "tsc",
+    "prepare": "node -e \"process.exit(require('fs').existsSync('tsconfig.json')?0:1)\" && tsc || echo \"doctor: skip prepare (no tsconfig — using prebuilt dist)\"",
     "dev": "tsc --watch",
     "test": "vitest run",
     "test:watch": "vitest",
