@@ -456,9 +456,9 @@ For example: `crash-reports/2026-03-13/typeerror-a3f2c1b0.md`
 ---
 title: "[ERROR] TypeError: Cannot read properties of undefined (reading 'id')"
 tags:
-  - crash-report
-  - error
-  - production
+  - severity:error
+  - env:production
+  - typeerror
   - checkout
 date: 2026-03-13T14:23:01.482Z
 severity: error
@@ -515,7 +515,7 @@ TypeError: Cannot read properties of undefined (reading 'id')
 
 Stack traces longer than 4,000 characters are truncated and a `[truncated]` marker is appended at the cut point.
 
-Because every report is a standard Vault document, you can search across crash reports using Vault's full-text search, filter by tag (`crash-report`, `fatal`, `production`), browse by date in the file tree, and link reports to related notes or post-mortems.
+Because every report is a standard Vault document, you can search across crash reports using Vault's full-text search, filter by the auto-generated tags (`severity:fatal`, `env:production`, the lowercased error name), browse by date in the file tree, and link reports to related notes or post-mortems.
 
 ---
 
@@ -726,7 +726,7 @@ const doctor = new LifestreamDoctor({
 });
 ```
 
-Custom tags are merged with the auto-generated tags (`crash-report`, severity level, environment) in the document frontmatter, making them searchable and filterable in Vault.
+Custom tags are merged with the auto-generated tags (`severity:<level>`, `env:<environment>`, and the lowercased error name) in the document frontmatter, making them searchable and filterable in Vault.
 
 ---
 
