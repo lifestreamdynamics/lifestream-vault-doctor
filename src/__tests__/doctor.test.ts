@@ -274,6 +274,109 @@ describe('LifestreamDoctor', () => {
     });
   });
 
+  // ── Persist-before-upload ─────────────────────────────────────────────────
+
+  describe('persist-before-upload', () => {
+    it('report is in the queue even when upload rejects (before flush)', async () => {
+      // Make fetch always reject — report must survive in queue
+      mockFetch.mockRejectedValue(new Error('network error'));
+      const { doctor, storage } = makeDoctor();
+      await doctor.grantConsent();
+      await doctor.captureException(new Error('fatal crash'));
+
+      // Inspect queue directly via storage key
+      const raw = await storage.getItem('doctor:queue');
+      const queue = JSON.parse(raw ?? '[]') as unknown[];
+      expect(queue.length).toBe(1);
+    });
+
+    it('report is removed from queue after a successful upload', async () => {
+      // fetch resolves successfully
+      mockFetch.mockResolvedValue(makeFetchResponse(true));
+      const { doctor, storage } = makeDoctor();
+      await doctor.grantConsent();
+      await doctor.captureException(new Error('success case'));
+
+      const raw = await storage.getItem('doctor:queue');
+      const queue = JSON.parse(raw ?? '[]') as unknown[];
+      expect(queue.length).toBe(0);
+    });
+
+    it('report remains in queue after a failed upload', async () => {
+      mockFetch.mockRejectedValue(new Error('offline'));
+      const { doctor, storage } = makeDoctor();
+      await doctor.grantConsent();
+      await doctor.captureException(new Error('failure case'));
+
+      const raw = await storage.getItem('doctor:queue');
+      const queue = JSON.parse(raw ?? '[]') as unknown[];
+      expect(queue.length).toBe(1);
+    });
+
+    it('suppressed report (beforeSend null) is NOT enqueued', async () => {
+      const { doctor, storage } = makeDoctor({ beforeSend: () => null });
+      await doctor.grantConsent();
+      await doctor.captureException(new Error('filtered'));
+
+      const raw = await storage.getItem('doctor:queue');
+      const queue = JSON.parse(raw ?? '[]') as unknown[];
+      expect(queue.length).toBe(0);
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it('disabled doctor does NOT enqueue', async () => {
+      const { doctor, storage } = makeDoctor({ enabled: false });
+      await doctor.grantConsent();
+      await doctor.captureException(new Error('disabled'));
+
+      const raw = await storage.getItem('doctor:queue');
+      const queue = JSON.parse(raw ?? '[]') as unknown[];
+      expect(queue.length).toBe(0);
+    });
+
+    it('no-consent doctor does NOT enqueue', async () => {
+      const { doctor, storage } = makeDoctor();
+      // Deliberately NOT calling grantConsent
+      await doctor.captureException(new Error('no consent'));
+
+      const raw = await storage.getItem('doctor:queue');
+      const queue = JSON.parse(raw ?? '[]') as unknown[];
+      expect(queue.length).toBe(0);
+    });
+
+    it('rate-limited duplicate report is NOT enqueued', async () => {
+      mockFetch.mockResolvedValue(makeFetchResponse(true));
+      const { doctor, storage } = makeDoctor({ rateLimitWindowMs: 60_000 });
+      await doctor.grantConsent();
+      const err = new Error('rate limited');
+
+      // First capture: uploaded + removed from queue
+      await doctor.captureException(err);
+      // Second capture: rate-limited, should be a no-op
+      mockFetch.mockRejectedValue(new Error('should not be called'));
+      await doctor.captureException(err);
+
+      const raw = await storage.getItem('doctor:queue');
+      const queue = JSON.parse(raw ?? '[]') as unknown[];
+      // Queue should be empty: first was removed on success, second was rate-limited
+      expect(queue.length).toBe(0);
+      // fetch was only called once (the rate-limited attempt never reached upload)
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('flushQueue sends exactly 1 report queued during upload failure', async () => {
+      mockFetch.mockRejectedValueOnce(new Error('offline'));
+      const { doctor } = makeDoctor();
+      await doctor.grantConsent();
+      await doctor.captureException(new Error('queued'));
+      // Now fetch succeeds
+      mockFetch.mockResolvedValue(makeFetchResponse(true));
+      const result = await doctor.flushQueue();
+      expect(result.sent).toBe(1);
+      expect(result.failed).toBe(0);
+    });
+  });
+
   // ── captureMessage ────────────────────────────────────────────────────────
 
   describe('captureMessage', () => {

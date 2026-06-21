@@ -24,6 +24,12 @@ export function installReactNativeHandlers(doctor: LifestreamDoctor): () => void
   doctor.setDeviceContextProvider(getReactNativeDeviceContext);
 
   const uninstallGlobal = installGlobalErrorHandler((error: Error) => {
+    // fire-and-forget: the RN global handler is synchronous and cannot be
+    // awaited. Durability comes from captureException's persist-before-upload
+    // strategy — the report is written to the offline queue before the HTTP
+    // upload is attempted, so it survives a fatal crash that kills the process
+    // mid-upload. Any unsent reports are flushed on the next app launch via
+    // flushQueue().
     void doctor.captureException(error, { severity: 'fatal' });
   });
 

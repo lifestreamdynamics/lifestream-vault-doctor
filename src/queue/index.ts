@@ -21,8 +21,10 @@ export class CrashQueue {
   /**
    * Adds a report to the queue.
    * If the queue is at capacity (50), the oldest entry is dropped to make room.
+   * Returns the id of the newly-queued entry so callers can remove it later
+   * (e.g. after a successful upload).
    */
-  async enqueue(content: string, path: string): Promise<void> {
+  async enqueue(content: string, path: string): Promise<string> {
     const queue = await this.load();
 
     const entry: QueuedReport = {
@@ -40,6 +42,7 @@ export class CrashQueue {
 
     queue.push(entry);
     await this.save(queue);
+    return entry.id;
   }
 
   /**

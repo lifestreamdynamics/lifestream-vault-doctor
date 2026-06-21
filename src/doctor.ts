@@ -187,7 +187,22 @@ export class LifestreamDoctor {
     // 7. Generate path
     const path = generateDocPath(report, this.options.pathPrefix);
 
-    // 8. Try uploadReport, on failure enqueue
+    // 8. Persist-before-upload: enqueue FIRST so a fatal crash that kills the
+    //    process before the upload completes still leaves the report on disk to
+    //    be flushed on the next launch. On a successful upload we remove it from
+    //    the queue; on failure we leave it queued for the next flushQueue() call.
+    let qid: string | null = null;
+    try {
+      qid = await this.queue.enqueue(content, path);
+    } catch (enqueueErr) {
+      // If persistence itself fails (e.g. storage full), log and continue —
+      // we still attempt the upload so the report isn't silently lost.
+      if (this.options.debug) {
+        // eslint-disable-next-line no-console
+        console.warn('[Doctor] Failed to enqueue report before upload:', enqueueErr instanceof Error ? enqueueErr.message : String(enqueueErr));
+      }
+    }
+
     try {
       await uploadReport({
         apiUrl: this.options.apiUrl,
@@ -198,12 +213,16 @@ export class LifestreamDoctor {
         enableRequestSigning: this.options.enableRequestSigning,
         signRequest: this.options.signRequest,
       });
+      // Upload succeeded — remove from queue so it isn't retried on next flush.
+      if (qid !== null) {
+        await this.queue.remove(qid);
+      }
     } catch (uploadErr) {
+      // Upload failed — leave the entry queued for the next flushQueue() call.
       if (this.options.debug) {
         // eslint-disable-next-line no-console
-        console.warn('[Doctor] Upload failed, enqueuing for retry:', uploadErr instanceof Error ? uploadErr.message : String(uploadErr));
+        console.warn('[Doctor] Upload failed, report queued for retry:', uploadErr instanceof Error ? uploadErr.message : String(uploadErr));
       }
-      await this.queue.enqueue(content, path);
     }
   }
 

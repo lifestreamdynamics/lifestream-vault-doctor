@@ -50,6 +50,34 @@ describe('CrashQueue', () => {
       const second = await q.dequeue();
       expect(first?.id).not.toBe(second?.id);
     });
+
+    it('returns a non-empty string id', async () => {
+      const q = makeQueue();
+      const id = await q.enqueue('content', 'path.md');
+      expect(typeof id).toBe('string');
+      expect(id.length).toBeGreaterThan(0);
+    });
+
+    it('returned id matches the id of the enqueued entry', async () => {
+      const q = makeQueue();
+      const id = await q.enqueue('content', 'path.md');
+      const entry = await q.dequeue();
+      expect(entry?.id).toBe(id);
+    });
+
+    it('each enqueue returns a unique id', async () => {
+      const q = makeQueue();
+      const id1 = await q.enqueue('a', 'a.md');
+      const id2 = await q.enqueue('b', 'b.md');
+      expect(id1).not.toBe(id2);
+    });
+
+    it('remove(returned-id) removes exactly that entry', async () => {
+      const q = makeQueue();
+      const id = await q.enqueue('content', 'path.md');
+      await q.remove(id);
+      expect(await q.size()).toBe(0);
+    });
   });
 
   describe('dequeue', () => {
