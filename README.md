@@ -338,7 +338,9 @@ The boundary passes the React `componentStack` as part of `extras`, which appear
 | `tags` | `string[]` | `[]` | Additional tags attached to every report |
 | `beforeSend` | `(report: CrashReport) => CrashReport \| null` | `undefined` | Filter or transform a report before upload. Return `null` to discard it |
 | `storage` | `StorageBackend` | `MemoryStorage` | Persistence backend for offline queue and consent state |
-| `enableRequestSigning` | `boolean` | `true` | Sign uploads with HMAC-SHA256 using the API key as the signing secret. When `crypto.subtle` is unavailable (e.g. React Native Hermes), signing is automatically skipped and the request proceeds unsigned |
+| `enableRequestSigning` | `boolean` | `true` | Sign uploads with HMAC-SHA256 using the API key as the signing secret. When `crypto.subtle` is unavailable (e.g. React Native Hermes) and no `signRequest` is provided, signing is automatically skipped and the request proceeds unsigned |
+| `signRequest` | `(apiKey: string, method: string, path: string, body: string) => Promise<Record<string, string>>` | `undefined` | Custom request-signing function for environments without `crypto.subtle` (e.g. React Native / Hermes). When provided, it replaces the built-in Web Crypto signing and must return the three signature headers (`X-Signature`, `X-Signature-Timestamp`, `X-Signature-Nonce`) |
+| `debug` | `boolean` | `false` | Enable debug logging to the console |
 
 ### Disabled instances for CI / test environments
 
